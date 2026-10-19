@@ -1,0 +1,14 @@
+{
+  "name": "pocketdev",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:api": "pnpm --filter @pocketdev/api dev",
+    "dev:mobile": "pnpm --filter @pocketdev/mobile start"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
