@@ -1,0 +1,11 @@
+# Copie ce fichier en .dev.vars pour `pnpm dev:api`. Ne jamais le committer.
+GITHUB_APP_ID=
+GITHUB_APP_SLUG=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+# Contenu du fichier .pem, sur une ligne avec des \n
+GITHUB_PRIVATE_KEY=
+# openssl rand -base64 32
+SECRETS_KEY=
+# En local, Expo Go utilise des adresses exp://
+APP_REDIRECT_PREFIXES=pocketdev://,exp://
