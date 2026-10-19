@@ -6,8 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "d1_databases": [{ "binding": "DB", "database_name": "pocketdev", "migrations_dir": "migrations" }],
-  // En production, seule l'app installée peut recevoir la connexion. En local, voir .dev.vars.example.
-  "vars": { "APP_REDIRECT_PREFIXES": "pocketdev://" },
+  // En production : l'app installée (pocketdev://) et Expo Go sur iPhone (exp://). En local, voir .dev.vars.example.
+  "vars": { "APP_REDIRECT_PREFIXES": "pocketdev://,exp://" },
   // Un conteneur éphémère par tâche : c'est le « runner ».
   "containers": [
     {

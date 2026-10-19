@@ -49,7 +49,8 @@ export class WorkspaceContainer extends DurableObject<Env> {
       if (!image) throw new Error("Image « workspace » introuvable");
       // Phase 0 : accès Internet ouvert pour cloner et installer. Le filtrage réseau
       // exigé par le cahier des charges arrive avec la gestion des sorties HTTP.
-      container.start({ image, enableInternet: true });
+      // « basic » (1 Gio de mémoire) : de quoi cloner un dépôt et faire tourner l'agent (Python).
+      container.start({ image, enableInternet: true, instance: "basic" });
       await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS);
     }
     return container;
