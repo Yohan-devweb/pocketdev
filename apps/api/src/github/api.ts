@@ -47,10 +47,15 @@ const API = "https://api.github.com";
 
 /** Accès à GitHub : OAuth de l'utilisateur et jetons d'installation de l'App. */
 export class GitHubApi {
+  private readonly fetchImpl: typeof fetch;
+
   constructor(
     private readonly config: GitHubAppConfig,
-    private readonly fetchImpl: typeof fetch = fetch,
-  ) {}
+    fetchImpl: typeof fetch = fetch,
+  ) {
+    // Appelé comme méthode, `fetch` recevrait l'instance comme `this` : Workers refuse (« Illegal invocation »).
+    this.fetchImpl = (input, init) => fetchImpl(input, init);
+  }
 
   authorizeUrl(state: string): string {
     const url = new URL("https://github.com/login/oauth/authorize");

@@ -38,6 +38,15 @@ describe("GitHubApi", () => {
     await expect(api.exchangeCode("x")).rejects.toBeInstanceOf(GitHubError);
   });
 
+  it("n'appelle pas fetch avec l'instance comme `this` (refusé par Workers)", async () => {
+    const strictFetch = function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(Response.json({ access_token: "ghu" }));
+    } as unknown as typeof fetch;
+    const api = new GitHubApi(CONFIG, strictFetch);
+    expect((await api.exchangeCode("x")).accessToken).toBe("ghu");
+  });
+
   it("calcule l'expiration du jeton utilisateur", async () => {
     const api = new GitHubApi(
       CONFIG,
