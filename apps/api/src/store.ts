@@ -1,4 +1,4 @@
-import type { AiKeySummary, AiProvider, Project, ProjectType } from "@pocketdev/shared";
+import type { AgentRunDetails, AiKeySummary, AiProvider, Project, ProjectType } from "@pocketdev/shared";
 
 export interface UserRecord {
   id: string;
@@ -29,6 +29,19 @@ export interface ProjectRecord extends Project {
   installationId: number;
 }
 
+export interface NewRun {
+  projectId: string;
+  ownerId: string;
+  goal: string;
+  provider: AiProvider;
+  model: string;
+  baseBranch: string;
+}
+
+export type RunRecord = AgentRunDetails & { ownerId: string };
+
+export type RunUpdate = Partial<Pick<AgentRunDetails, "status" | "branch" | "files" | "diff" | "log" | "error" | "finishedAt">>;
+
 /** Persistance de l'API. D1 en production, une version en mémoire dans les tests. */
 export interface Store {
   upsertUser(user: Omit<UserRecord, "id">): Promise<UserRecord>;
@@ -56,6 +69,14 @@ export interface Store {
   getAiKeyEnc(userId: string, provider: AiProvider): Promise<string | null>;
   putAiKey(userId: string, provider: AiProvider, keyEnc: string, hint: string): Promise<AiKeySummary>;
   deleteAiKey(userId: string, provider: AiProvider): Promise<void>;
+
+  /** Crée la demande en file d'attente (« queued »). */
+  createRun(run: NewRun): Promise<RunRecord>;
+  getRun(id: string): Promise<RunRecord | null>;
+  listRuns(projectId: string, ownerId: string, limit: number): Promise<RunRecord[]>;
+  /** Vrai si une demande du projet est en attente ou en cours. */
+  hasActiveRun(projectId: string): Promise<boolean>;
+  updateRun(id: string, update: RunUpdate): Promise<void>;
 
   audit(event: { actorId: string; action: string; target: string; result: "ok" | "denied" | "error" }): Promise<void>;
 }

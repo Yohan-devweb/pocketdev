@@ -1,4 +1,4 @@
-import { AI_PROVIDER_LABELS, AI_PROVIDERS, type AiProvider } from "@pocketdev/shared";
+import { AI_PROVIDER_LABELS, AI_PROVIDERS, type AgentRunDetails, type AiProvider, DEFAULT_AI_MODELS } from "@pocketdev/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -6,7 +6,8 @@ import { type AiKeyVerifier, keyHint, normalizeKey } from "./ai/keys";
 import { randomToken, SecretBox, sha256Hex } from "./crypto";
 import type { Env } from "./env";
 import { GitHubApi, GitHubError } from "./github/api";
-import type { Store, UserRecord } from "./store";
+import type { RunnerProvider } from "./runner/types";
+import type { RunRecord, Store, UserRecord } from "./store";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -17,12 +18,20 @@ export interface AppDeps {
   store(env: Env): Store;
   github(env: Env): GitHubApi;
   aiKeys(env: Env): AiKeyVerifier;
+  runners(env: Env): RunnerProvider;
   now?(): Date;
 }
 
-type Vars = { store: Store; github: GitHubApi; aiKeys: AiKeyVerifier; secrets: SecretBox; user: UserRecord };
+type Vars = { store: Store; github: GitHubApi; aiKeys: AiKeyVerifier; runners: RunnerProvider; secrets: SecretBox; user: UserRecord };
 
 const iso = (date: Date) => date.toISOString();
+
+const GOAL_MAX_LENGTH = 4000;
+/** Noms de modèle et de branche passés en argument : jamais d'espace, jamais d'option (« -… »). */
+const MODEL_PATTERN = /^[A-Za-z0-9][\w.:/-]{0,99}$/;
+const BRANCH_PATTERN = /^[A-Za-z0-9][\w./-]{0,199}$/;
+
+const publicRun = ({ ownerId: _owner, ...run }: RunRecord): AgentRunDetails => run;
 
 export function isAllowedRedirect(uri: string, prefixes: string): boolean {
   return prefixes
@@ -43,6 +52,7 @@ export function createApp(deps: AppDeps) {
     c.set("store", deps.store(c.env));
     c.set("github", deps.github(c.env));
     c.set("aiKeys", deps.aiKeys(c.env));
+    c.set("runners", deps.runners(c.env));
     c.set("secrets", await SecretBox.fromBase64Key(c.env.SECRETS_KEY));
     await next();
   });
@@ -255,6 +265,61 @@ export function createApp(deps: AppDeps) {
     await c.var.store.deleteAiKey(c.var.user.id, provider);
     await c.var.store.audit({ actorId: c.var.user.id, action: "ai_key.delete", target: provider, result: "ok" });
     return c.json({ ok: true });
+  });
+
+  // --- Demandes à l'agent de code ----------------------------------------------------
+
+  authed.get("/projects/:id/runs", async (c) => {
+    const project = await ownedProject(c);
+    const runs = await c.var.store.listRuns(project.id, c.var.user.id, 20);
+    // La liste reste légère : diff et journal se lisent sur la page d'une demande.
+    return c.json({ runs: runs.map((run) => ({ ...publicRun(run), diff: null, log: "" })) });
+  });
+
+  authed.post("/projects/:id/runs", async (c) => {
+    const project = await ownedProject(c);
+    const body = await c.req
+      .json<{ goal?: unknown; provider?: unknown; model?: unknown; branch?: unknown }>()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    const goal = typeof body.goal === "string" ? body.goal.trim() : "";
+    if (!goal) throw new HTTPException(400, { message: "Décris ce que l'agent doit faire" });
+    if (goal.length > GOAL_MAX_LENGTH) throw new HTTPException(400, { message: "Demande trop longue (4 000 caractères maximum)" });
+
+    const provider = body.provider as AiProvider;
+    if (!AI_PROVIDERS.includes(provider)) throw new HTTPException(400, { message: "Choisis un fournisseur d'IA" });
+    const model = typeof body.model === "string" && body.model.trim() ? body.model.trim() : DEFAULT_AI_MODELS[provider];
+    if (!MODEL_PATTERN.test(model)) throw new HTTPException(400, { message: "Nom de modèle invalide" });
+    const baseBranch = typeof body.branch === "string" && body.branch ? body.branch : project.defaultBranch;
+    if (!BRANCH_PATTERN.test(baseBranch)) throw new HTTPException(400, { message: "Nom de branche invalide" });
+
+    if (!(await c.var.store.getAiKeyEnc(c.var.user.id, provider))) {
+      throw new HTTPException(400, { message: `Connecte d'abord ta clé ${AI_PROVIDER_LABELS[provider]} dans l'onglet Connect` });
+    }
+    if (await c.var.store.hasActiveRun(project.id)) {
+      throw new HTTPException(409, { message: "Une demande est déjà en cours sur ce projet" });
+    }
+
+    const run = await c.var.store.createRun({ projectId: project.id, ownerId: c.var.user.id, goal, provider, model, baseBranch });
+    await c.var.store.audit({ actorId: c.var.user.id, action: "run.create", target: `${project.repository}#${run.id}`, result: "ok" });
+    try {
+      await c.var.runners.dispatch(run.id);
+    } catch (err) {
+      console.error(err);
+      await c.var.store.updateRun(run.id, {
+        status: "failed",
+        error: "Impossible de démarrer le runner",
+        finishedAt: iso(now()),
+      });
+      return c.json({ run: publicRun((await c.var.store.getRun(run.id)) ?? run) }, 201);
+    }
+    return c.json({ run: publicRun(run) }, 201);
+  });
+
+  authed.get("/runs/:runId", async (c) => {
+    const run = await c.var.store.getRun(c.req.param("runId"));
+    if (!run || run.ownerId !== c.var.user.id) throw new HTTPException(404, { message: "Demande introuvable" });
+    return c.json({ run: publicRun(run) });
   });
 
   app.route("/", authed);

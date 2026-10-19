@@ -110,3 +110,30 @@ export interface AiKeySummary {
   hint: string;
   updatedAt: IsoDate;
 }
+
+/** Modèle proposé par défaut ; l'utilisateur peut en saisir un autre de son fournisseur. */
+export const DEFAULT_AI_MODELS: Record<AiProvider, string> = {
+  anthropic: "claude-sonnet-5-5",
+  openai: "gpt-6-astra",
+  openrouter: "anthropic/claude-sonnet-5.5",
+};
+
+/** Une demande confiée à l'agent de code, telle que l'app l'affiche. */
+export interface AgentRunDetails {
+  id: Id;
+  projectId: Id;
+  goal: string;
+  provider: AiProvider;
+  model: string;
+  status: RunStatus;
+  baseBranch: string;
+  /** Branche poussée sur GitHub quand l'agent a modifié des fichiers. */
+  branch: string | null;
+  files: string[];
+  diff: string | null;
+  /** Fin du journal de l'agent, pour comprendre ce qu'il a fait. */
+  log: string;
+  error: string | null;
+  createdAt: IsoDate;
+  finishedAt: IsoDate | null;
+}

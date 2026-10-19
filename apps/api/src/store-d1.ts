@@ -1,5 +1,5 @@
-import type { AiKeySummary, AiProvider } from "@pocketdev/shared";
-import type { CodeKind, CodeRecord, NewProject, ProjectRecord, Store, UserRecord } from "./store";
+import type { AiKeySummary, AiProvider, RunStatus } from "@pocketdev/shared";
+import type { CodeKind, CodeRecord, NewProject, NewRun, ProjectRecord, RunRecord, RunUpdate, Store, UserRecord } from "./store";
 
 interface UserRow {
   id: string;
@@ -22,6 +22,53 @@ interface ProjectRow {
   status: ProjectRecord["status"];
   created_at: string;
 }
+
+interface RunRow {
+  id: string;
+  project_id: string;
+  owner_id: string;
+  goal: string;
+  provider: AiProvider;
+  model: string;
+  status: RunStatus;
+  base_branch: string;
+  branch: string | null;
+  files: string;
+  diff: string | null;
+  log: string;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+const toRun = (r: RunRow): RunRecord => ({
+  id: r.id,
+  projectId: r.project_id,
+  ownerId: r.owner_id,
+  goal: r.goal,
+  provider: r.provider,
+  model: r.model,
+  status: r.status,
+  baseBranch: r.base_branch,
+  branch: r.branch,
+  files: JSON.parse(r.files) as string[],
+  diff: r.diff,
+  log: r.log,
+  error: r.error,
+  createdAt: r.created_at,
+  finishedAt: r.finished_at,
+});
+
+/** Colonnes modifiables d'une demande, dans le nom attendu par SQL. */
+const RUN_COLUMNS: Record<keyof RunUpdate, string> = {
+  status: "status",
+  branch: "branch",
+  files: "files",
+  diff: "diff",
+  log: "log",
+  error: "error",
+  finishedAt: "finished_at",
+};
 
 const toUser = (r: UserRow): UserRecord => ({
   id: r.id,
@@ -187,6 +234,48 @@ export class D1Store implements Store {
 
   async deleteAiKey(userId: string, provider: AiProvider): Promise<void> {
     await this.db.prepare("DELETE FROM ai_keys WHERE user_id = ?1 AND provider = ?2").bind(userId, provider).run();
+  }
+
+  async createRun(run: NewRun): Promise<RunRecord> {
+    const row = await this.db
+      .prepare(
+        `INSERT INTO runs (id, project_id, owner_id, goal, provider, model, status, base_branch, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, ?8)
+         RETURNING *`,
+      )
+      .bind(crypto.randomUUID(), run.projectId, run.ownerId, run.goal, run.provider, run.model, run.baseBranch, new Date().toISOString())
+      .first<RunRow>();
+    if (!row) throw new Error("Échec de l'enregistrement de la demande");
+    return toRun(row);
+  }
+
+  async getRun(id: string): Promise<RunRecord | null> {
+    const row = await this.db.prepare("SELECT * FROM runs WHERE id = ?1").bind(id).first<RunRow>();
+    return row ? toRun(row) : null;
+  }
+
+  async listRuns(projectId: string, ownerId: string, limit: number): Promise<RunRecord[]> {
+    const { results } = await this.db
+      .prepare("SELECT * FROM runs WHERE project_id = ?1 AND owner_id = ?2 ORDER BY created_at DESC LIMIT ?3")
+      .bind(projectId, ownerId, limit)
+      .all<RunRow>();
+    return results.map(toRun);
+  }
+
+  async hasActiveRun(projectId: string): Promise<boolean> {
+    const row = await this.db
+      .prepare("SELECT 1 AS active FROM runs WHERE project_id = ?1 AND status IN ('queued', 'running') LIMIT 1")
+      .bind(projectId)
+      .first<{ active: number }>();
+    return row !== null;
+  }
+
+  async updateRun(id: string, update: RunUpdate): Promise<void> {
+    const entries = Object.entries(update).filter(([, value]) => value !== undefined) as [keyof RunUpdate, unknown][];
+    if (entries.length === 0) return;
+    const sets = entries.map(([key], i) => `${RUN_COLUMNS[key]} = ?${i + 2}`).join(", ");
+    const values = entries.map(([key, value]) => (key === "files" ? JSON.stringify(value) : value));
+    await this.db.prepare(`UPDATE runs SET ${sets} WHERE id = ?1`).bind(id, ...values).run();
   }
 
   async audit(e: { actorId: string; action: string; target: string; result: "ok" | "denied" | "error" }): Promise<void> {

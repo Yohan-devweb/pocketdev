@@ -1,3 +1,4 @@
+import type { Env } from "../env";
 import { signAppJwt } from "../crypto";
 
 /** Configuration de la GitHub App, lue depuis les secrets du Worker. */
@@ -140,15 +141,18 @@ export class GitHubApi {
     return repos;
   }
 
-  /** Jeton d'installation limité à un dépôt et à la lecture du contenu. */
-  async installationToken(installationId: number, repository: string): Promise<string> {
+  /**
+   * Jeton d'installation limité à un dépôt. Lecture seule par défaut ; l'écriture ne sert
+   * qu'à pousser la branche de travail d'une demande.
+   */
+  async installationToken(installationId: number, repository: string, access: "read" | "write" = "read"): Promise<string> {
     const jwt = await signAppJwt(this.config.appId, this.config.privateKey).catch(() => {
       throw new GitHubError(503, "La GitHub App PocketDev n'est pas configurée sur le serveur");
     });
     const repoName = repository.split("/")[1];
     const { token } = await this.request<{ token: string }>(`/app/installations/${installationId}/access_tokens`, jwt, {
       method: "POST",
-      body: JSON.stringify({ repositories: [repoName], permissions: { contents: "read", metadata: "read" } }),
+      body: JSON.stringify({ repositories: [repoName], permissions: { contents: access, metadata: "read" } }),
     });
     return token;
   }
@@ -169,4 +173,14 @@ export class GitHubApi {
       .map(({ name, path, type }) => ({ name, path, type }))
       .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
   }
+}
+
+export function githubFromEnv(env: Env): GitHubApi {
+  return new GitHubApi({
+    appId: env.GITHUB_APP_ID,
+    slug: env.GITHUB_APP_SLUG,
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+    privateKey: env.GITHUB_PRIVATE_KEY,
+  });
 }
