@@ -7,5 +7,5 @@ GITHUB_CLIENT_SECRET=
 GITHUB_PRIVATE_KEY=
 # openssl rand -base64 32
 SECRETS_KEY=
-# En local, Expo Go utilise des adresses exp://
-APP_REDIRECT_PREFIXES=pocketdev://,exp://
+# En local : exp:// pour Expo Go, http://localhost:8081 pour l'app web
+APP_REDIRECT_PREFIXES=pocketdev://,exp://,http://localhost:8081
