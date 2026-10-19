@@ -92,3 +92,21 @@ export interface AuditEvent {
   result: "ok" | "denied" | "error";
   at: IsoDate;
 }
+
+/** Fournisseurs d'IA pour lesquels l'utilisateur apporte sa propre clé (BYOK). */
+export type AiProvider = "anthropic" | "openai" | "openrouter";
+
+export const AI_PROVIDERS: readonly AiProvider[] = ["anthropic", "openai", "openrouter"];
+
+export const AI_PROVIDER_LABELS: Record<AiProvider, string> = {
+  anthropic: "Claude (Anthropic)",
+  openai: "ChatGPT (OpenAI)",
+  openrouter: "OpenRouter",
+};
+
+/** Ce que l'app voit d'une clé IA : jamais la clé elle-même, seulement ses 4 derniers caractères. */
+export interface AiKeySummary {
+  provider: AiProvider;
+  hint: string;
+  updatedAt: IsoDate;
+}

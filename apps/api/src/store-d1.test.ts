@@ -9,7 +9,9 @@ let store: D1Store;
 
 beforeAll(async () => {
   proxy = await getPlatformProxy<{ DB: D1Database }>({ persist: false });
-  const schema = readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8");
+  const schema = ["0001_init.sql", "0002_ai_keys.sql"]
+    .map((file) => readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"))
+    .join(";\n");
   const statements = schema
     .replace(/--.*$/gm, "")
     .split(";")
@@ -62,5 +64,18 @@ describe("D1Store", () => {
     expect(await store.listProjects(user.id)).toHaveLength(1);
     expect(await store.getProject(first.id, "autre")).toBeNull();
     await store.audit({ actorId: user.id, action: "project.import", target: "b/site", result: "ok" });
+  });
+
+  it("garde une clé IA par fournisseur et la limite à son propriétaire", async () => {
+    const user = await store.upsertUser({ githubId: 4, githubLogin: "c", ...tokens });
+    await store.putAiKey(user.id, "openai", "enc-1", "aaaa");
+    await store.putAiKey(user.id, "openai", "enc-2", "bbbb");
+    await store.putAiKey(user.id, "anthropic", "enc-3", "cccc");
+    const keys = await store.listAiKeys(user.id);
+    expect(keys.map((k) => [k.provider, k.hint])).toEqual([["anthropic", "cccc"], ["openai", "bbbb"]]);
+    expect(await store.getAiKeyEnc(user.id, "openai")).toBe("enc-2");
+    expect(await store.getAiKeyEnc("autre", "openai")).toBeNull();
+    await store.deleteAiKey(user.id, "openai");
+    expect(await store.getAiKeyEnc(user.id, "openai")).toBeNull();
   });
 });

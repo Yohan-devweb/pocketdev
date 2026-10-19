@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { AiKeyVerifier, type KeyCheck } from "./ai/keys";
 import { createApp, isAllowedRedirect } from "./app";
 import type { Env } from "./env";
 import { GitHubApi, type GitHubRepo, type UserTokens } from "./github/api";
@@ -46,14 +47,23 @@ class FakeGitHub extends GitHubApi {
   }
 }
 
+class FakeAiKeys extends AiKeyVerifier {
+  result: KeyCheck = "valid";
+  override async verify() {
+    return this.result;
+  }
+}
+
 let store: MemoryStore;
+let aiKeys: FakeAiKeys;
 let github: FakeGitHub;
 let app: ReturnType<typeof createApp>;
 
 beforeEach(() => {
   store = new MemoryStore();
   github = new FakeGitHub();
-  app = createApp({ store: () => store, github: () => github });
+  aiKeys = new FakeAiKeys();
+  app = createApp({ store: () => store, github: () => github, aiKeys: () => aiKeys });
 });
 
 const request = (path: string, init?: RequestInit) => app.request(path, init, ENV);
@@ -155,6 +165,63 @@ describe("projets", () => {
     const { project } = (await created.json()) as { project: { id: string } };
     store.projects.get(project.id)!.ownerId = "quelqu-un-d-autre";
     expect((await request(`/projects/${project.id}/branches`, authed(token))).status).toBe(404);
+  });
+});
+
+describe("clés IA", () => {
+  const KEY = "sk-ant-api03-cle-de-test-1234";
+  const save = (token: string, provider: string, key: unknown) =>
+    request(`/ai/keys/${provider}`, authed(token, { method: "PUT", body: JSON.stringify({ key }) }));
+
+  it("enregistre une clé acceptée par le fournisseur, chiffrée, sans jamais la renvoyer", async () => {
+    const token = await login();
+    const res = await save(token, "anthropic", `  ${KEY}\n`);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(await res.json())).not.toContain(KEY);
+
+    const list = await request("/ai/keys", authed(token));
+    const body = JSON.stringify(await list.json());
+    expect(body).toContain('"hint":"1234"');
+    expect(body).not.toContain(KEY);
+
+    const [stored] = [...store.aiKeys.values()];
+    expect(stored!.keyEnc).not.toContain(KEY);
+    expect(store.auditLog.at(-1)).toMatchObject({ action: "ai_key.save", target: "anthropic", result: "ok" });
+    expect(JSON.stringify(store.auditLog)).not.toContain(KEY);
+  });
+
+  it("refuse une clé rejetée par le fournisseur et ne l'enregistre pas", async () => {
+    const token = await login();
+    aiKeys.result = "invalid";
+    const res = await save(token, "openai", KEY);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "ChatGPT (OpenAI) a refusé cette clé" });
+    expect(store.aiKeys.size).toBe(0);
+  });
+
+  it("n'affirme rien quand le fournisseur ne répond pas", async () => {
+    const token = await login();
+    aiKeys.result = "unavailable";
+    expect((await save(token, "openrouter", KEY)).status).toBe(502);
+    expect(store.aiKeys.size).toBe(0);
+  });
+
+  it("refuse un format invalide ou un fournisseur inconnu", async () => {
+    const token = await login();
+    expect((await save(token, "anthropic", "trop court")).status).toBe(400);
+    expect((await save(token, "anthropic", 42)).status).toBe(400);
+    expect((await save(token, "inconnu", KEY)).status).toBe(404);
+  });
+
+  it("retire une clé", async () => {
+    const token = await login();
+    await save(token, "anthropic", KEY);
+    expect((await request("/ai/keys/anthropic", authed(token, { method: "DELETE" }))).status).toBe(200);
+    expect(await (await request("/ai/keys", authed(token))).json()).toEqual({ keys: [] });
+  });
+
+  it("exige une session", async () => {
+    expect((await request("/ai/keys")).status).toBe(401);
   });
 });
 
