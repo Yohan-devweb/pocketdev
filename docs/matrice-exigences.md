@@ -12,7 +12,9 @@ Source : cahier des charges PocketDev AI v1.0 (19/10/2026). Statuts : ✅ fait �
 | Le jeton GitHub ne fuit pas (arguments, `.git/config`, logs) | `gitAuthEnv` | `git.test.ts` : « ne met jamais le jeton… » | ✅ |
 | Diff réel d'une tâche | `collectDiff` | `git.test.ts` | ✅ |
 | Un échec n'est jamais présenté comme un succès | `RunnerCommandError`, `isTerminal` | `git.test.ts`, `events.test.ts` | ✅ |
-| GitHub App avec permissions minimales | à créer | Import d'un dépôt privé de test | ⬜ |
+| GitHub App avec permissions minimales | `apps/api/src/github/api.ts`, guide `docs/github-app.md` | Jetons d'installation limités à un dépôt en lecture | 🟡 code prêt, App à créer |
+| Connexion GitHub depuis l'iPhone | `apps/api/src/app.ts` (`/auth/*`), `apps/mobile/src/lib/session.tsx` | `app.test.ts` : parcours complet, state et code à usage unique, redirections limitées | ✅ |
+| Importer un dépôt privé autorisé et afficher branches et fichiers (P0) | `POST /projects`, `/projects/:id/branches`, `/projects/:id/files` ; écrans Import et Projet | `app.test.ts` ; captures avec l'API locale | ✅ hors GitHub réel |
 | Agent de code dans le runner (clé IA de l'utilisateur) | à créer | Une demande produit un diff sur une branche | ⬜ |
 | Streaming des logs et statuts vers l'app | types `RunEvent` (`packages/shared`) ; route SSE à créer | Logs visibles en direct sur iPhone | 🟡 |
 | Preview web sécurisée sur iPhone | `fetchPort` du runner ; route protégée à créer | Ouvrir l'URL dans Safari | 🟡 |
@@ -31,8 +33,8 @@ Source : cahier des charges PocketDev AI v1.0 (19/10/2026). Statuts : ✅ fait �
 
 | Exigence | Composant prévu | Statut |
 | --- | --- | --- |
-| Authentification et sessions expirables | API | ⬜ |
-| Secrets chiffrés côté serveur, jamais renvoyés au client | API + stockage chiffré | ⬜ |
+| Authentification et sessions expirables | Sessions de 30 jours stockées en empreinte SHA-256, déconnexion | ✅ |
+| Secrets chiffrés côté serveur, jamais renvoyés au client | `SecretBox` (AES-GCM) pour les jetons GitHub | ✅ |
 | Filtrage réseau des runners | Interception des sorties HTTP du conteneur | ⬜ (Internet ouvert en Phase 0) |
 | Approbation avant actions destructrices et production | Statut `awaiting_approval` | 🟡 statut défini |
-| Journal d'audit | Entité `AuditEvent` | 🟡 type défini |
+| Journal d'audit | Table `audit_events` : connexions et imports (acceptés ou refusés) | 🟡 premiers événements |

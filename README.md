@@ -24,6 +24,8 @@ pnpm dev:api       # API sur http://localhost:8787 (Docker requis pour les conte
 pnpm dev:mobile    # Expo : scanne le QR code avec Expo Go sur iPhone
 ```
 
+Pour la connexion GitHub, suis `docs/github-app.md` puis copie `apps/api/.dev.vars.example` en `apps/api/.dev.vars`. Base locale : `pnpm --filter @pocketdev/api exec wrangler d1 migrations apply pocketdev --local`.
+
 Pour l'app, copie `apps/mobile/.env.example` en `apps/mobile/.env` et ajuste `EXPO_PUBLIC_API_URL`.
 
 ## Déployer l'API

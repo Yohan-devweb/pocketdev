@@ -137,7 +137,9 @@ export class GitHubApi {
 
   /** Jeton d'installation limité à un dépôt et à la lecture du contenu. */
   async installationToken(installationId: number, repository: string): Promise<string> {
-    const jwt = await signAppJwt(this.config.appId, this.config.privateKey);
+    const jwt = await signAppJwt(this.config.appId, this.config.privateKey).catch(() => {
+      throw new GitHubError(503, "La GitHub App PocketDev n'est pas configurée sur le serveur");
+    });
     const repoName = repository.split("/")[1];
     const { token } = await this.request<{ token: string }>(`/app/installations/${installationId}/access_tokens`, jwt, {
       method: "POST",

@@ -68,3 +68,10 @@ describe("GitHubApi", () => {
     ]);
   });
 });
+
+describe("GitHubApi sans configuration", () => {
+  it("explique que la GitHub App n'est pas configurée au lieu d'une erreur interne", async () => {
+    const api = new GitHubApi(CONFIG, fakeFetch({}));
+    await expect(api.installationToken(1, "a/x")).rejects.toMatchObject({ status: 503 });
+  });
+});

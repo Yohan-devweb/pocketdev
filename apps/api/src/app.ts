@@ -46,7 +46,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
     if (err instanceof GitHubError) {
-      const status = err.status === 401 || err.status === 403 || err.status === 404 ? err.status : 502;
+      const status = [401, 403, 404, 503].includes(err.status) ? (err.status as 401 | 403 | 404 | 503) : 502;
       return c.json({ error: err.message }, status);
     }
     console.error(err);
