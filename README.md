@@ -27,14 +27,10 @@ pnpm dev:mobile        # Expo : scanne le QR code avec Expo Go sur iPhone
 
 Pour la connexion GitHub, suis `docs/github-app.md` puis copie `apps/api/.dev.vars.example` en `apps/api/.dev.vars`. Base locale : `pnpm --filter @pocketdev/api exec wrangler d1 migrations apply pocketdev --local`.
 
-L'agent IA (onglet AI Chat) tourne dans un runner : il faut `pnpm dev:api:runners` avec Docker Desktop lancé. Le premier démarrage construit l'image du runner (Node, Git et l'agent Aider), ce qui prend quelques minutes. Sans Docker, une demande échoue avec un message qui l'explique.
+L'agent IA (onglet AI Chat) tourne dans un runner : il faut `pnpm dev:api:runners` avec Docker Desktop lancé (sous Windows, depuis WSL : Wrangler ne lance pas les conteneurs en local sous Windows ; sinon, tester directement en ligne). Le premier démarrage construit l'image du runner (Node, Git et l'agent Aider), ce qui prend quelques minutes. Sans Docker, une demande échoue avec un message qui l'explique.
 
 Pour l'app, copie `apps/mobile/.env.example` en `apps/mobile/.env` et ajuste `EXPO_PUBLIC_API_URL`.
 
 ## Déployer l'API
 
-Nécessite l'offre Workers payante (conteneurs) et Docker pour construire l'image du runner :
-
-```sh
-cd apps/api && pnpm wrangler login && pnpm deploy
-```
+Voir `docs/deploiement.md` (offre Workers payante, base D1, secrets, Docker pour l'image du runner, puis l'app sur iPhone avec Expo Go).
