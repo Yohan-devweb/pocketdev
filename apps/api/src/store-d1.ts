@@ -1,3 +1,4 @@
+import type { AiKeySummary, AiProvider } from "@pocketdev/shared";
 import type { CodeKind, CodeRecord, NewProject, ProjectRecord, Store, UserRecord } from "./store";
 
 interface UserRow {
@@ -153,6 +154,39 @@ export class D1Store implements Store {
       .first<ProjectRow>();
     if (!row) throw new Error("Échec de l'import du projet");
     return toProject(row);
+  }
+
+  async listAiKeys(userId: string): Promise<AiKeySummary[]> {
+    const { results } = await this.db
+      .prepare("SELECT provider, key_hint, updated_at FROM ai_keys WHERE user_id = ?1 ORDER BY provider")
+      .bind(userId)
+      .all<{ provider: AiProvider; key_hint: string; updated_at: string }>();
+    return results.map((r) => ({ provider: r.provider, hint: r.key_hint, updatedAt: r.updated_at }));
+  }
+
+  async getAiKeyEnc(userId: string, provider: AiProvider): Promise<string | null> {
+    const row = await this.db
+      .prepare("SELECT key_enc FROM ai_keys WHERE user_id = ?1 AND provider = ?2")
+      .bind(userId, provider)
+      .first<{ key_enc: string }>();
+    return row?.key_enc ?? null;
+  }
+
+  async putAiKey(userId: string, provider: AiProvider, keyEnc: string, hint: string): Promise<AiKeySummary> {
+    const updatedAt = new Date().toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO ai_keys (user_id, provider, key_enc, key_hint, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (user_id, provider) DO UPDATE SET
+           key_enc = excluded.key_enc, key_hint = excluded.key_hint, updated_at = excluded.updated_at`,
+      )
+      .bind(userId, provider, keyEnc, hint, updatedAt)
+      .run();
+    return { provider, hint, updatedAt };
+  }
+
+  async deleteAiKey(userId: string, provider: AiProvider): Promise<void> {
+    await this.db.prepare("DELETE FROM ai_keys WHERE user_id = ?1 AND provider = ?2").bind(userId, provider).run();
   }
 
   async audit(e: { actorId: string; action: string; target: string; result: "ok" | "denied" | "error" }): Promise<void> {

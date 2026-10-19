@@ -1,4 +1,4 @@
-import type { Project, ProjectType } from "@pocketdev/shared";
+import type { AiKeySummary, AiProvider, Project, ProjectType } from "@pocketdev/shared";
 
 export interface UserRecord {
   id: string;
@@ -50,6 +50,12 @@ export interface Store {
   listProjects(ownerId: string): Promise<ProjectRecord[]>;
   getProject(id: string, ownerId: string): Promise<ProjectRecord | null>;
   insertProject(project: NewProject): Promise<ProjectRecord>;
+
+  listAiKeys(userId: string): Promise<AiKeySummary[]>;
+  /** Clé chiffrée, à ouvrir avec SecretBox juste avant de la transmettre au runner. */
+  getAiKeyEnc(userId: string, provider: AiProvider): Promise<string | null>;
+  putAiKey(userId: string, provider: AiProvider, keyEnc: string, hint: string): Promise<AiKeySummary>;
+  deleteAiKey(userId: string, provider: AiProvider): Promise<void>;
 
   audit(event: { actorId: string; action: string; target: string; result: "ok" | "denied" | "error" }): Promise<void>;
 }

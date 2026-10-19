@@ -1,3 +1,4 @@
+import { AiKeyVerifier } from "./ai/keys";
 import { createApp } from "./app";
 import { GitHubApi } from "./github/api";
 import { D1Store } from "./store-d1";
@@ -14,4 +15,5 @@ export default createApp({
       clientSecret: env.GITHUB_CLIENT_SECRET,
       privateKey: env.GITHUB_PRIVATE_KEY,
     }),
+  aiKeys: () => new AiKeyVerifier(),
 });

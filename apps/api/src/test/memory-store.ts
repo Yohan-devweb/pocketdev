@@ -1,3 +1,4 @@
+import type { AiKeySummary, AiProvider } from "@pocketdev/shared";
 import type { CodeKind, CodeRecord, NewProject, ProjectRecord, Store, UserRecord } from "../store";
 
 /** Store en mémoire pour les tests ; même contrat que D1Store. */
@@ -6,6 +7,7 @@ export class MemoryStore implements Store {
   sessions = new Map<string, { userId: string; expiresAt: string }>();
   codes = new Map<string, CodeRecord & { kind: CodeKind; expiresAt: string }>();
   projects = new Map<string, ProjectRecord>();
+  aiKeys = new Map<string, AiKeySummary & { keyEnc: string }>();
   auditLog: { actorId: string; action: string; target: string; result: string }[] = [];
 
   async upsertUser(user: Omit<UserRecord, "id">) {
@@ -57,6 +59,22 @@ export class MemoryStore implements Store {
     };
     this.projects.set(record.id, record);
     return record;
+  }
+  async listAiKeys(userId: string) {
+    return [...this.aiKeys.entries()]
+      .filter(([k]) => k.startsWith(`${userId}:`))
+      .map(([, { provider, hint, updatedAt }]) => ({ provider, hint, updatedAt }));
+  }
+  async getAiKeyEnc(userId: string, provider: AiProvider) {
+    return this.aiKeys.get(`${userId}:${provider}`)?.keyEnc ?? null;
+  }
+  async putAiKey(userId: string, provider: AiProvider, keyEnc: string, hint: string) {
+    const summary = { provider, hint, updatedAt: new Date().toISOString() };
+    this.aiKeys.set(`${userId}:${provider}`, { ...summary, keyEnc });
+    return summary;
+  }
+  async deleteAiKey(userId: string, provider: AiProvider) {
+    this.aiKeys.delete(`${userId}:${provider}`);
   }
   async audit(e: { actorId: string; action: string; target: string; result: "ok" | "denied" | "error" }) {
     this.auditLog.push(e);

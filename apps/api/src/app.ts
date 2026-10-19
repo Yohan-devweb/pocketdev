@@ -1,6 +1,8 @@
+import { AI_PROVIDER_LABELS, AI_PROVIDERS, type AiProvider } from "@pocketdev/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
+import { type AiKeyVerifier, keyHint, normalizeKey } from "./ai/keys";
 import { randomToken, SecretBox, sha256Hex } from "./crypto";
 import type { Env } from "./env";
 import { GitHubApi, GitHubError } from "./github/api";
@@ -14,10 +16,11 @@ const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 export interface AppDeps {
   store(env: Env): Store;
   github(env: Env): GitHubApi;
+  aiKeys(env: Env): AiKeyVerifier;
   now?(): Date;
 }
 
-type Vars = { store: Store; github: GitHubApi; secrets: SecretBox; user: UserRecord };
+type Vars = { store: Store; github: GitHubApi; aiKeys: AiKeyVerifier; secrets: SecretBox; user: UserRecord };
 
 const iso = (date: Date) => date.toISOString();
 
@@ -39,6 +42,7 @@ export function createApp(deps: AppDeps) {
   app.use("*", async (c, next) => {
     c.set("store", deps.store(c.env));
     c.set("github", deps.github(c.env));
+    c.set("aiKeys", deps.aiKeys(c.env));
     c.set("secrets", await SecretBox.fromBase64Key(c.env.SECRETS_KEY));
     await next();
   });
@@ -213,6 +217,44 @@ export function createApp(deps: AppDeps) {
     const path = c.req.query("path") ?? "";
     const token = await c.var.github.installationToken(project.installationId, project.repository);
     return c.json({ branch, path, entries: await c.var.github.listDirectory(token, project.repository, branch, path) });
+  });
+
+  // --- Clés IA de l'utilisateur (BYOK) ---------------------------------------------
+
+  function aiProvider(c: { req: { param(name: "provider"): string } }): AiProvider {
+    const provider = c.req.param("provider") as AiProvider;
+    if (!AI_PROVIDERS.includes(provider)) throw new HTTPException(404, { message: "Fournisseur d'IA inconnu" });
+    return provider;
+  }
+
+  authed.get("/ai/keys", async (c) => c.json({ keys: await c.var.store.listAiKeys(c.var.user.id) }));
+
+  authed.put("/ai/keys/:provider", async (c) => {
+    const provider = aiProvider(c);
+    const body = await c.req.json<{ key?: unknown }>().catch(() => ({ key: undefined }));
+    const key = normalizeKey(body.key);
+    if (!key) throw new HTTPException(400, { message: "Cette clé n'a pas le bon format" });
+
+    const check = await c.var.aiKeys.verify(provider, key);
+    const label = AI_PROVIDER_LABELS[provider];
+    if (check === "unavailable") {
+      throw new HTTPException(502, { message: `${label} ne répond pas, réessaie dans un instant` });
+    }
+    if (check === "invalid") {
+      await c.var.store.audit({ actorId: c.var.user.id, action: "ai_key.save", target: provider, result: "denied" });
+      throw new HTTPException(400, { message: `${label} a refusé cette clé` });
+    }
+
+    const summary = await c.var.store.putAiKey(c.var.user.id, provider, await c.var.secrets.seal(key), keyHint(key));
+    await c.var.store.audit({ actorId: c.var.user.id, action: "ai_key.save", target: provider, result: "ok" });
+    return c.json({ key: summary });
+  });
+
+  authed.delete("/ai/keys/:provider", async (c) => {
+    const provider = aiProvider(c);
+    await c.var.store.deleteAiKey(c.var.user.id, provider);
+    await c.var.store.audit({ actorId: c.var.user.id, action: "ai_key.delete", target: provider, result: "ok" });
+    return c.json({ ok: true });
   });
 
   app.route("/", authed);
