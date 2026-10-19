@@ -1,0 +1,20 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "pocketdev-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Un conteneur éphémère par tâche : c'est le « runner ».
+  "containers": [
+    {
+      "class_name": "WorkspaceContainer",
+      "scheduling_policy": "durable_object",
+      "images": { "workspace": { "dockerfile": "./container/Dockerfile" } }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "WORKSPACE", "class_name": "WorkspaceContainer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceContainer"] }]
+}

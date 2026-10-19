@@ -1,0 +1,94 @@
+// Entités essentielles du cahier des charges (section 4). Partagées entre l'app et l'API.
+
+export type Id = string;
+export type IsoDate = string;
+
+export type ProjectType = "web" | "saas" | "mobile";
+
+export interface Project {
+  id: Id;
+  ownerId: Id;
+  name: string;
+  type: ProjectType;
+  stack: string | null;
+  /** "owner/repo" sur GitHub, source de vérité du code. */
+  repository: string;
+  defaultBranch: string;
+  status: "active" | "archived";
+  createdAt: IsoDate;
+}
+
+export type ConnectionProvider =
+  | "github"
+  | "cloudflare"
+  | "vercel"
+  | "supabase"
+  | "anthropic"
+  | "openai"
+  | "openrouter"
+  | "stripe";
+
+/** Le secret lui-même ne quitte jamais le serveur : on ne manipule qu'une référence. */
+export interface Connection {
+  id: Id;
+  ownerId: Id;
+  provider: ConnectionProvider;
+  scopes: string[];
+  secretRef: string;
+  state: "connected" | "revoked" | "error";
+}
+
+export type AgentRole = "orchestrator" | "frontend" | "backend" | "qa";
+
+export type RunStatus =
+  | "awaiting_approval"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export interface AgentRun {
+  id: Id;
+  projectId: Id;
+  goal: string;
+  plan: string | null;
+  agent: AgentRole;
+  status: RunStatus;
+  /** Branche de travail isolée créée pour cette tâche. */
+  branch: string | null;
+  costUsd: number | null;
+  createdAt: IsoDate;
+  finishedAt: IsoDate | null;
+}
+
+export interface ChangeSet {
+  runId: Id;
+  branch: string;
+  baseCommit: string;
+  diff: string;
+  tests: { command: string; exitCode: number }[];
+}
+
+export type DeployProvider = "cloudflare" | "vercel";
+export type DeployEnvironment = "preview" | "staging" | "production";
+
+export interface Deployment {
+  id: Id;
+  projectId: Id;
+  provider: DeployProvider;
+  environment: DeployEnvironment;
+  commit: string;
+  url: string | null;
+  status: "pending" | "building" | "ready" | "failed";
+  createdAt: IsoDate;
+}
+
+export interface AuditEvent {
+  id: Id;
+  actorId: Id;
+  action: string;
+  target: string;
+  result: "ok" | "denied" | "error";
+  at: IsoDate;
+}
