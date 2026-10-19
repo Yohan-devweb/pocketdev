@@ -27,4 +27,9 @@ export interface Runner {
 export interface RunnerProvider {
   /** Retourne le runner dédié à une tâche, en le démarrant si besoin. */
   acquire(runId: string): Promise<Runner>;
+  /**
+   * Lance l'exécution d'une demande en arrière-plan, hors de la requête HTTP qui l'a créée.
+   * Le fournisseur appelle ensuite executeRun (runs/execute.ts) avec son propre runner.
+   */
+  dispatch(runId: string): Promise<void>;
 }

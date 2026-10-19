@@ -72,3 +72,25 @@ export async function collectDiff(runner: Runner, baseCommit: string) {
     diff: diff.stdout,
   };
 }
+
+export interface PushInput {
+  workBranch: string;
+  message: string;
+  token: string;
+}
+
+/** Commit les changements déjà indexés par collectDiff et pousse la branche de travail (jamais la branche de base). */
+export async function pushWorkBranch(runner: Runner, input: PushInput): Promise<void> {
+  await run(runner, "commit", [
+    "git",
+    "-c",
+    "user.name=PocketDev",
+    "-c",
+    "user.email=pocketdev@users.noreply.github.com",
+    "commit",
+    "--no-verify",
+    "-m",
+    input.message,
+  ]);
+  await run(runner, "push", ["git", "push", "origin", `HEAD:refs/heads/${input.workBranch}`], gitAuthEnv(input.token));
+}

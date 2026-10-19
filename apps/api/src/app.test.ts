@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { AiKeyVerifier, type KeyCheck } from "./ai/keys";
 import { createApp, isAllowedRedirect } from "./app";
+import { sha256Hex } from "./crypto";
 import type { Env } from "./env";
 import { GitHubApi, type GitHubRepo, type UserTokens } from "./github/api";
+import type { RunnerProvider } from "./runner/types";
 import { MemoryStore } from "./test/memory-store";
 
 const ENV = {
@@ -54,7 +56,20 @@ class FakeAiKeys extends AiKeyVerifier {
   }
 }
 
+class FakeRunners implements RunnerProvider {
+  dispatched: string[] = [];
+  broken = false;
+  async acquire(): Promise<never> {
+    throw new Error("non utilisé");
+  }
+  async dispatch(runId: string) {
+    if (this.broken) throw new Error("conteneur indisponible");
+    this.dispatched.push(runId);
+  }
+}
+
 let store: MemoryStore;
+let runners: FakeRunners;
 let aiKeys: FakeAiKeys;
 let github: FakeGitHub;
 let app: ReturnType<typeof createApp>;
@@ -63,7 +78,8 @@ beforeEach(() => {
   store = new MemoryStore();
   github = new FakeGitHub();
   aiKeys = new FakeAiKeys();
-  app = createApp({ store: () => store, github: () => github, aiKeys: () => aiKeys });
+  runners = new FakeRunners();
+  app = createApp({ store: () => store, github: () => github, aiKeys: () => aiKeys, runners: () => runners });
 });
 
 const request = (path: string, init?: RequestInit) => app.request(path, init, ENV);
@@ -222,6 +238,73 @@ describe("clés IA", () => {
 
   it("exige une session", async () => {
     expect((await request("/ai/keys")).status).toBe(401);
+  });
+});
+
+describe("demandes à l'agent", () => {
+  async function setup() {
+    const token = await login();
+    const created = await request("/projects", authed(token, { method: "POST", body: JSON.stringify({ repository: "yohan/site" }) }));
+    const { project } = (await created.json()) as { project: { id: string } };
+    const ask = (body: Record<string, unknown>) =>
+      request(`/projects/${project.id}/runs`, authed(token, { method: "POST", body: JSON.stringify(body) }));
+    return { token, projectId: project.id, ask };
+  }
+  const saveKey = (token: string) =>
+    request("/ai/keys/anthropic", authed(token, { method: "PUT", body: JSON.stringify({ key: "sk-ant-api03-cle-de-test-1234" }) }));
+
+  it("exige une clé connectée pour le fournisseur choisi", async () => {
+    const { ask } = await setup();
+    const res = await ask({ goal: "Ajoute un pied de page", provider: "anthropic" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Connecte d'abord ta clé Claude (Anthropic) dans l'onglet Connect" });
+    expect(runners.dispatched).toEqual([]);
+  });
+
+  it("crée la demande, la confie au runner et la rend consultable par son seul auteur", async () => {
+    const { token, projectId, ask } = await setup();
+    await saveKey(token);
+    const res = await ask({ goal: "  Ajoute un pied de page  ", provider: "anthropic" });
+    expect(res.status).toBe(201);
+    const { run } = (await res.json()) as { run: Record<string, unknown> };
+    expect(run).toMatchObject({ goal: "Ajoute un pied de page", status: "queued", model: "claude-sonnet-5-5", baseBranch: "main" });
+    expect(run).not.toHaveProperty("ownerId");
+    expect(runners.dispatched).toEqual([run.id]);
+
+    expect((await request(`/runs/${run.id}`, authed(token))).status).toBe(200);
+    const list = (await (await request(`/projects/${projectId}/runs`, authed(token))).json()) as { runs: unknown[] };
+    expect(list.runs).toHaveLength(1);
+
+    const intruder = await store.upsertUser({ githubId: 99, githubLogin: "autre", githubTokenEnc: "x", githubRefreshEnc: null, githubTokenExpiresAt: null });
+    await store.createSession(await sha256Hex("intrus"), intruder.id, "2999-01-01T00:00:00.000Z");
+    const other = await app.request(`/runs/${run.id}`, { headers: { Authorization: "Bearer intrus" } }, ENV);
+    expect(other.status).toBe(404);
+  });
+
+  it("refuse une deuxième demande tant que la première tourne", async () => {
+    const { token, ask } = await setup();
+    await saveKey(token);
+    expect((await ask({ goal: "Un", provider: "anthropic" })).status).toBe(201);
+    expect((await ask({ goal: "Deux", provider: "anthropic" })).status).toBe(409);
+  });
+
+  it("valide la demande, le modèle et la branche", async () => {
+    const { token, ask } = await setup();
+    await saveKey(token);
+    expect((await ask({ goal: "   ", provider: "anthropic" })).status).toBe(400);
+    expect((await ask({ goal: "x".repeat(4001), provider: "anthropic" })).status).toBe(400);
+    expect((await ask({ goal: "ok", provider: "inconnu" })).status).toBe(400);
+    expect((await ask({ goal: "ok", provider: "anthropic", model: "--help" })).status).toBe(400);
+    expect((await ask({ goal: "ok", provider: "anthropic", branch: "--upload-pack=x" })).status).toBe(400);
+    expect(runners.dispatched).toEqual([]);
+  });
+
+  it("marque la demande en échec si le runner ne démarre pas", async () => {
+    const { token, ask } = await setup();
+    await saveKey(token);
+    runners.broken = true;
+    const res = await ask({ goal: "ok", provider: "anthropic" });
+    expect(await res.json()).toMatchObject({ run: { status: "failed", error: "Impossible de démarrer le runner" } });
   });
 });
 

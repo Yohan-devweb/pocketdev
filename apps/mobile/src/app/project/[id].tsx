@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Chips, SectionLabel } from "../../components/Chips";
 import { Card, ErrorText, Loading, Muted } from "../../components/ui";
 import { Screen } from "../../components/Screen";
 import type { ApiProject, RepoEntry } from "../../lib/api";
@@ -29,27 +30,21 @@ export default function ProjectScreen() {
     >
       {project.status === "error" ? <ErrorText>{project.error}</ErrorText> : null}
 
-      <Text style={styles.section}>Branches</Text>
+      <SectionLabel>Branches</SectionLabel>
       {branches.status === "loading" ? <Loading /> : null}
       {branches.status === "error" ? <ErrorText>{branches.error}</ErrorText> : null}
       {branches.status === "ok" ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {branches.data.branches.map((name) => (
-            <Pressable
-              key={name}
-              onPress={() => {
-                setBranch(name);
-                setPath("");
-              }}
-              style={[styles.chip, name === currentBranch && styles.chipActive]}
-            >
-              <Text style={[styles.chipLabel, name === currentBranch && { color: "#FFFFFF" }]}>{name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <Chips
+          options={branches.data.branches}
+          selected={currentBranch}
+          onSelect={(name) => {
+            setBranch(name);
+            setPath("");
+          }}
+        />
       ) : null}
 
-      <Text style={styles.section}>Fichiers{path ? ` · ${path}` : ""}</Text>
+      <SectionLabel>{`Fichiers${path ? ` · ${path}` : ""}`}</SectionLabel>
       {files.status === "loading" ? <Loading /> : null}
       {files.status === "error" ? <ErrorText>{files.error}</ErrorText> : null}
       {files.status === "ok" ? (
@@ -92,18 +87,6 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  section: { color: colors.textMuted, fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginTop: 8 },
-  chips: { gap: 8 },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipLabel: { color: colors.text, fontSize: 14 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   rowLabel: { color: colors.text, fontSize: 15 },
 });

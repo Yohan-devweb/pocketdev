@@ -1,5 +1,5 @@
 import type { AiKeySummary, AiProvider } from "@pocketdev/shared";
-import type { CodeKind, CodeRecord, NewProject, ProjectRecord, Store, UserRecord } from "../store";
+import type { CodeKind, CodeRecord, NewProject, NewRun, ProjectRecord, RunRecord, RunUpdate, Store, UserRecord } from "../store";
 
 /** Store en mémoire pour les tests ; même contrat que D1Store. */
 export class MemoryStore implements Store {
@@ -8,6 +8,7 @@ export class MemoryStore implements Store {
   codes = new Map<string, CodeRecord & { kind: CodeKind; expiresAt: string }>();
   projects = new Map<string, ProjectRecord>();
   aiKeys = new Map<string, AiKeySummary & { keyEnc: string }>();
+  runs = new Map<string, RunRecord>();
   auditLog: { actorId: string; action: string; target: string; result: string }[] = [];
 
   async upsertUser(user: Omit<UserRecord, "id">) {
@@ -75,6 +76,40 @@ export class MemoryStore implements Store {
   }
   async deleteAiKey(userId: string, provider: AiProvider) {
     this.aiKeys.delete(`${userId}:${provider}`);
+  }
+  async createRun(run: NewRun) {
+    const record: RunRecord = {
+      ...run,
+      id: crypto.randomUUID(),
+      status: "queued",
+      branch: null,
+      files: [],
+      diff: null,
+      log: "",
+      error: null,
+      createdAt: new Date().toISOString(),
+      finishedAt: null,
+    };
+    this.runs.set(record.id, record);
+    return record;
+  }
+  async getRun(id: string) {
+    return this.runs.get(id) ?? null;
+  }
+  async listRuns(projectId: string, ownerId: string, limit: number) {
+    return [...this.runs.values()]
+      .filter((r) => r.projectId === projectId && r.ownerId === ownerId)
+      .reverse()
+      .slice(0, limit);
+  }
+  async hasActiveRun(projectId: string) {
+    return [...this.runs.values()].some((r) => r.projectId === projectId && (r.status === "queued" || r.status === "running"));
+  }
+  async updateRun(id: string, update: RunUpdate) {
+    const run = this.runs.get(id);
+    if (!run) return;
+    const defined = Object.fromEntries(Object.entries(update).filter(([, v]) => v !== undefined));
+    this.runs.set(id, { ...run, ...defined });
   }
   async audit(e: { actorId: string; action: string; target: string; result: "ok" | "denied" | "error" }) {
     this.auditLog.push(e);

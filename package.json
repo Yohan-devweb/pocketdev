@@ -6,6 +6,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "dev:api": "pnpm --filter @pocketdev/api dev",
+    "dev:api:runners": "pnpm --filter @pocketdev/api dev:runners",
     "dev:mobile": "pnpm --filter @pocketdev/mobile start"
   },
   "engines": {

@@ -16,8 +16,8 @@ Source : cahier des charges PocketDev AI v1.0 (19/10/2026). Statuts : ✅ fait �
 | Connexion GitHub depuis l'iPhone | `apps/api/src/app.ts` (`/auth/*`), `apps/mobile/src/lib/session.tsx` | `app.test.ts` : parcours complet, state et code à usage unique, redirections limitées | ✅ |
 | Importer un dépôt privé autorisé et afficher branches et fichiers (P0) | `POST /projects`, `/projects/:id/branches`, `/projects/:id/files` ; écrans Import et Projet | `app.test.ts` ; test réel en local avec le compte GitHub de Yohan | ✅ |
 | Clé IA de l'utilisateur (Claude, OpenAI, OpenRouter), sans crédit inclus | `apps/api/src/ai/keys.ts`, `/ai/keys` ; carte IA de Connect | `app.test.ts` : vérifiée auprès du fournisseur, chiffrée, jamais renvoyée ; `keys.test.ts` | ✅ |
-| Agent de code dans le runner (clé IA de l'utilisateur) | à créer | Une demande produit un diff sur une branche | ⬜ |
-| Streaming des logs et statuts vers l'app | types `RunEvent` (`packages/shared`) ; route SSE à créer | Logs visibles en direct sur iPhone | 🟡 |
+| Agent de code dans le runner (clé IA de l'utilisateur) | Aider dans l'image du runner (`apps/api/src/agent/aider.ts`), orchestration `apps/api/src/runs/execute.ts`, alarme du Durable Object ; écrans AI Chat et Demande | `execute.test.ts` : clone, agent, diff, push d'une branche dédiée, échecs explicites, aucun secret dans les arguments ni le journal | 🟡 code prêt, à tester avec Docker puis en production |
+| Streaming des logs et statuts vers l'app | Phase 0 : l'app interroge `/runs/:id` toutes les 3 s et le journal est enregistré à chaque étape ; SSE (`RunEvent`) plus tard | Statut et journal visibles pendant la demande | 🟡 |
 | Preview web sécurisée sur iPhone | `fetchPort` du runner ; route protégée à créer | Ouvrir l'URL dans Safari | 🟡 |
 | Déploiement Cloudflare (puis Vercel) | à créer | Projet de démo publié | ⬜ |
 
@@ -37,5 +37,5 @@ Source : cahier des charges PocketDev AI v1.0 (19/10/2026). Statuts : ✅ fait �
 | Authentification et sessions expirables | Sessions de 30 jours stockées en empreinte SHA-256, déconnexion | ✅ |
 | Secrets chiffrés côté serveur, jamais renvoyés au client | `SecretBox` (AES-GCM) pour les jetons GitHub et les clés IA | ✅ |
 | Filtrage réseau des runners | Interception des sorties HTTP du conteneur | ⬜ (Internet ouvert en Phase 0) |
-| Approbation avant actions destructrices et production | Statut `awaiting_approval` | 🟡 statut défini |
+| Approbation avant actions destructrices et production | Statut `awaiting_approval` ; l'agent ne pousse que sur une branche `pocketdev/…`, jamais sur la branche de base, et ne lance aucune commande shell | 🟡 |
 | Journal d'audit | Table `audit_events` : connexions, imports et clés IA (acceptés ou refusés, jamais la clé) | 🟡 premiers événements |
