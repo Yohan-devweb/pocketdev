@@ -6,7 +6,7 @@ import { type AiKeyVerifier, keyHint, normalizeKey } from "./ai/keys";
 import { randomToken, SecretBox, sha256Hex } from "./crypto";
 import type { Env } from "./env";
 import { GitHubApi, GitHubError } from "./github/api";
-import type { RunnerProvider } from "./runner/types";
+import type { RunDispatcher } from "./runs/dispatcher";
 import type { RunRecord, Store, UserRecord } from "./store";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -18,11 +18,12 @@ export interface AppDeps {
   store(env: Env): Store;
   github(env: Env): GitHubApi;
   aiKeys(env: Env): AiKeyVerifier;
-  runners(env: Env): RunnerProvider;
+  /** Où s'exécutent les demandes : agent par API (par défaut) ou runner. */
+  runs(env: Env): RunDispatcher;
   now?(): Date;
 }
 
-type Vars = { store: Store; github: GitHubApi; aiKeys: AiKeyVerifier; runners: RunnerProvider; secrets: SecretBox; user: UserRecord };
+type Vars = { store: Store; github: GitHubApi; aiKeys: AiKeyVerifier; runs: RunDispatcher; secrets: SecretBox; user: UserRecord };
 
 const iso = (date: Date) => date.toISOString();
 
@@ -52,7 +53,7 @@ export function createApp(deps: AppDeps) {
     c.set("store", deps.store(c.env));
     c.set("github", deps.github(c.env));
     c.set("aiKeys", deps.aiKeys(c.env));
-    c.set("runners", deps.runners(c.env));
+    c.set("runs", deps.runs(c.env));
     c.set("secrets", await SecretBox.fromBase64Key(c.env.SECRETS_KEY));
     await next();
   });
@@ -303,7 +304,7 @@ export function createApp(deps: AppDeps) {
     const run = await c.var.store.createRun({ projectId: project.id, ownerId: c.var.user.id, goal, provider, model, baseBranch });
     await c.var.store.audit({ actorId: c.var.user.id, action: "run.create", target: `${project.repository}#${run.id}`, result: "ok" });
     try {
-      await c.var.runners.dispatch(run.id);
+      await c.var.runs.dispatch(run.id);
     } catch (err) {
       console.error(err);
       await c.var.store.updateRun(run.id, {

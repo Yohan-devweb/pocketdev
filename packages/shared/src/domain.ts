@@ -131,6 +131,8 @@ export interface AgentRunDetails {
   branch: string | null;
   files: string[];
   diff: string | null;
+  /** Ce que l'agent dit avoir fait, en quelques phrases. */
+  summary: string | null;
   /** Fin du journal de l'agent, pour comprendre ce qu'il a fait. */
   log: string;
   error: string | null;

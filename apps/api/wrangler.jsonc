@@ -17,7 +17,14 @@
     }
   ],
   "durable_objects": {
-    "bindings": [{ "name": "WORKSPACE", "class_name": "WorkspaceContainer" }]
+    "bindings": [
+      { "name": "WORKSPACE", "class_name": "WorkspaceContainer" },
+      // Une demande à l'agent par API (sans conteneur).
+      { "name": "AGENT_RUN", "class_name": "AgentRunObject" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceContainer"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["WorkspaceContainer"] },
+    { "tag": "v2", "new_sqlite_classes": ["AgentRunObject"] }
+  ]
 }

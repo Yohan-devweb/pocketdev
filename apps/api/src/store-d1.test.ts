@@ -9,7 +9,7 @@ let store: D1Store;
 
 beforeAll(async () => {
   proxy = await getPlatformProxy<{ DB: D1Database }>({ persist: false });
-  const schema = ["0001_init.sql", "0002_ai_keys.sql", "0003_runs.sql"]
+  const schema = ["0001_init.sql", "0002_ai_keys.sql", "0003_runs.sql", "0004_run_summary.sql"]
     .map((file) => readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"))
     .join(";\n");
   const statements = schema

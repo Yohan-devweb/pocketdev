@@ -35,6 +35,20 @@ export interface RepoEntry {
   type: "file" | "dir" | "symlink" | "submodule";
 }
 
+/** Contenu final d'un fichier modifié par l'agent ; null pour une suppression. */
+export type FileChanges = Map<string, string | null>;
+
+export interface RepoSnapshot {
+  /** Commit de la branche de base au moment de la lecture. */
+  commit: string;
+  /** Chemins des fichiers du dépôt (sans les dossiers). */
+  files: string[];
+  /** Vrai si GitHub a tronqué l'arborescence (dépôt très gros). */
+  truncated: boolean;
+}
+
+const encodePath = (path: string) => path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+
 export class GitHubError extends Error {
   constructor(
     readonly status: number,
@@ -163,7 +177,7 @@ export class GitHubApi {
   }
 
   async listDirectory(token: string, repository: string, ref: string, path = ""): Promise<RepoEntry[]> {
-    const encodedPath = path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+    const encodedPath = encodePath(path);
     const entries = await this.request<RepoEntry[] | RepoEntry>(
       `/repos/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
       token,
@@ -172,6 +186,83 @@ export class GitHubApi {
     return list
       .map(({ name, path, type }) => ({ name, path, type }))
       .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
+  }
+
+  /** Commit de tête d'une branche et liste complète de ses fichiers. */
+  async snapshot(token: string, repository: string, branch: string): Promise<RepoSnapshot> {
+    const ref = await this.request<{ object: { sha: string } }>(
+      `/repos/${repository}/git/ref/heads/${encodePath(branch)}`,
+      token,
+    );
+    const tree = await this.request<{ tree: { path: string; type: string }[]; truncated: boolean }>(
+      `/repos/${repository}/git/trees/${ref.object.sha}?recursive=1`,
+      token,
+    );
+    return {
+      commit: ref.object.sha,
+      files: tree.tree.filter((entry) => entry.type === "blob").map((entry) => entry.path),
+      truncated: tree.truncated,
+    };
+  }
+
+  /** Contenu texte d'un fichier à un commit donné ; null s'il n'existe pas. */
+  async readFile(token: string, repository: string, ref: string, path: string): Promise<string | null> {
+    const res = await this.fetchImpl(`${API}/repos/${repository}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`, {
+      headers: {
+        Accept: "application/vnd.github.raw+json",
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "PocketDev",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new GitHubError(res.status, `GitHub contents : ${res.status}`);
+    return res.text();
+  }
+
+  /**
+   * Crée une nouvelle branche portant un seul commit avec les changements, au-dessus du commit
+   * de base. Ne touche jamais une branche existante : GitHub refuse si la branche existe déjà.
+   */
+  async commitToNewBranch(
+    token: string,
+    repository: string,
+    input: { baseCommit: string; branch: string; message: string; changes: FileChanges },
+  ): Promise<string> {
+    const base = await this.request<{ tree: { sha: string } }>(`/repos/${repository}/git/commits/${input.baseCommit}`, token);
+    const entries = [...input.changes].map(([path, content]) =>
+      content === null
+        ? { path, mode: "100644", type: "blob", sha: null }
+        : { path, mode: "100644", type: "blob", content },
+    );
+    const tree = await this.request<{ sha: string }>(`/repos/${repository}/git/trees`, token, {
+      method: "POST",
+      body: JSON.stringify({ base_tree: base.tree.sha, tree: entries }),
+    });
+    const commit = await this.request<{ sha: string }>(`/repos/${repository}/git/commits`, token, {
+      method: "POST",
+      body: JSON.stringify({ message: input.message, tree: tree.sha, parents: [input.baseCommit] }),
+    });
+    await this.request(`/repos/${repository}/git/refs`, token, {
+      method: "POST",
+      body: JSON.stringify({ ref: `refs/heads/${input.branch}`, sha: commit.sha }),
+    });
+    return commit.sha;
+  }
+
+  /** Diff unifié entre deux références, reconstitué depuis l'API de comparaison. */
+  async compare(token: string, repository: string, base: string, head: string): Promise<string> {
+    const result = await this.request<{ files?: { filename: string; previous_filename?: string; patch?: string }[] }>(
+      `/repos/${repository}/compare/${base}...${encodePath(head)}`,
+      token,
+    );
+    return (result.files ?? [])
+      .map((file) => {
+        const before = file.previous_filename ?? file.filename;
+        const header = `diff --git a/${before} b/${file.filename}\n--- a/${before}\n+++ b/${file.filename}`;
+        return file.patch ? `${header}\n${file.patch}` : `${header}\n(fichier binaire ou trop gros pour être affiché)`;
+      })
+      .join("\n");
   }
 }
 

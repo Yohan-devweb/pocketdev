@@ -64,9 +64,14 @@ export default function RunScreen() {
       </View>
       {error ? <ErrorText>{error}</ErrorText> : null}
       {run.error ? <ErrorText>{run.error}</ErrorText> : null}
+      {run.summary ? (
+        <Card>
+          <Text style={styles.summary}>{run.summary}</Text>
+        </Card>
+      ) : null}
 
       {run.status === "succeeded" && run.files.length === 0 ? (
-        <Muted>L'agent n'a modifié aucun fichier. Son journal ci-dessous explique pourquoi.</Muted>
+        <Muted>L'agent n'a modifié aucun fichier.</Muted>
       ) : null}
 
       {run.branch && repository ? (
@@ -121,7 +126,7 @@ export default function RunScreen() {
           ) : null}
         </>
       ) : (
-        <Muted>{isTerminal(run.status) ? "Journal vide." : "Le runner démarre…"}</Muted>
+        <Muted>{isTerminal(run.status) ? "Journal vide." : "L'agent démarre…"}</Muted>
       )}
     </Screen>
   );
@@ -139,6 +144,7 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   status: { fontSize: 16, fontWeight: "600" },
+  summary: { color: colors.text, fontSize: 15, lineHeight: 21 },
   mono: {
     color: colors.text,
     fontSize: 12,
