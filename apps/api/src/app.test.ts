@@ -4,7 +4,7 @@ import { createApp, isAllowedRedirect } from "./app";
 import { sha256Hex } from "./crypto";
 import type { Env } from "./env";
 import { GitHubApi, type GitHubRepo, type UserTokens } from "./github/api";
-import type { RunnerProvider } from "./runner/types";
+import type { RunDispatcher } from "./runs/dispatcher";
 import { MemoryStore } from "./test/memory-store";
 
 const ENV = {
@@ -56,12 +56,9 @@ class FakeAiKeys extends AiKeyVerifier {
   }
 }
 
-class FakeRunners implements RunnerProvider {
+class FakeRunners implements RunDispatcher {
   dispatched: string[] = [];
   broken = false;
-  async acquire(): Promise<never> {
-    throw new Error("non utilisé");
-  }
   async dispatch(runId: string) {
     if (this.broken) throw new Error("conteneur indisponible");
     this.dispatched.push(runId);
@@ -79,7 +76,7 @@ beforeEach(() => {
   github = new FakeGitHub();
   aiKeys = new FakeAiKeys();
   runners = new FakeRunners();
-  app = createApp({ store: () => store, github: () => github, aiKeys: () => aiKeys, runners: () => runners });
+  app = createApp({ store: () => store, github: () => github, aiKeys: () => aiKeys, runs: () => runners });
 });
 
 const request = (path: string, init?: RequestInit) => app.request(path, init, ENV);

@@ -1,7 +1,9 @@
 import type { WorkspaceContainer } from "./runner/cloudflare";
+import type { AgentRunObject } from "./runs/agent-object";
 
 export interface Env {
   WORKSPACE: DurableObjectNamespace<WorkspaceContainer>;
+  AGENT_RUN: DurableObjectNamespace<AgentRunObject>;
   DB: D1Database;
   // Secrets (wrangler secret put) — voir docs/github-app.md.
   GITHUB_APP_ID: string;

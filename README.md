@@ -27,7 +27,7 @@ pnpm dev:mobile        # Expo : scanne le QR code avec Expo Go sur iPhone
 
 Pour la connexion GitHub, suis `docs/github-app.md` puis copie `apps/api/.dev.vars.example` en `apps/api/.dev.vars`. Base locale : `pnpm --filter @pocketdev/api exec wrangler d1 migrations apply pocketdev --local`.
 
-L'agent IA (onglet AI Chat) tourne dans un runner : il faut `pnpm dev:api:runners` avec Docker Desktop lancé. Le premier démarrage construit l'image du runner (Node, Git et l'agent Aider), ce qui prend quelques minutes. Sans Docker, une demande échoue avec un message qui l'explique.
+L'agent IA (onglet AI Chat) fonctionne avec `pnpm dev:api`, sans Docker : il lit et modifie le dépôt par l'API GitHub avec la clé IA de l'utilisateur, puis pousse une branche `pocketdev/…`. Les runners (conteneurs, `pnpm dev:api:runners`, Docker et Linux ou WSL requis) restent disponibles pour une future exécution de commandes et une preview en direct.
 
 Pour l'app, copie `apps/mobile/.env.example` en `apps/mobile/.env` et ajuste `EXPO_PUBLIC_API_URL`.
 

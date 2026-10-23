@@ -35,6 +35,7 @@ interface RunRow {
   branch: string | null;
   files: string;
   diff: string | null;
+  summary: string | null;
   log: string;
   error: string | null;
   created_at: string;
@@ -53,6 +54,7 @@ const toRun = (r: RunRow): RunRecord => ({
   branch: r.branch,
   files: JSON.parse(r.files) as string[],
   diff: r.diff,
+  summary: r.summary,
   log: r.log,
   error: r.error,
   createdAt: r.created_at,
@@ -65,6 +67,7 @@ const RUN_COLUMNS: Record<keyof RunUpdate, string> = {
   branch: "branch",
   files: "files",
   diff: "diff",
+  summary: "summary",
   log: "log",
   error: "error",
   finishedAt: "finished_at",

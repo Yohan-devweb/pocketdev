@@ -7,9 +7,9 @@ import type { Runner } from "../runner/types";
 import type { Store } from "../store";
 
 const AGENT_TIMEOUT_MS = 10 * 60 * 1000;
-const LOG_LIMIT = 20_000;
+export const LOG_LIMIT = 20_000;
 /** Une ligne D1 est limitée à 2 Mo : au-delà, le diff complet reste consultable sur GitHub. */
-const DIFF_LIMIT = 500_000;
+export const DIFF_LIMIT = 500_000;
 /** Erreurs d'appel au modèle affichées par Aider (via LiteLLM) alors qu'il se termine sans code d'erreur. */
 const PROVIDER_ERROR = /AuthenticationError|PermissionDeniedError|RateLimitError|NotFoundError|BadRequestError|APIConnectionError|InternalServerError|ServiceUnavailableError/;
 
@@ -22,9 +22,9 @@ export interface ExecuteDeps {
 }
 
 /** Erreur expliquée à l'utilisateur telle quelle. */
-class RunError extends Error {}
+export class RunError extends Error {}
 
-const tail = (text: string, limit: number) => (text.length > limit ? `…${text.slice(-limit)}` : text);
+export const tail = (text: string, limit: number) => (text.length > limit ? `…${text.slice(-limit)}` : text);
 
 /** Nom de la branche poussée sur GitHub pour une demande. */
 export const workBranchFor = (runId: string) => `pocketdev/${runId.slice(0, 8)}`;

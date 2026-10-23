@@ -40,7 +40,7 @@ export interface NewRun {
 
 export type RunRecord = AgentRunDetails & { ownerId: string };
 
-export type RunUpdate = Partial<Pick<AgentRunDetails, "status" | "branch" | "files" | "diff" | "log" | "error" | "finishedAt">>;
+export type RunUpdate = Partial<Pick<AgentRunDetails, "status" | "branch" | "files" | "diff" | "summary" | "log" | "error" | "finishedAt">>;
 
 /** Persistance de l'API. D1 en production, une version en mémoire dans les tests. */
 export interface Store {

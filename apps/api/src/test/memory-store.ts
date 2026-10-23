@@ -85,6 +85,7 @@ export class MemoryStore implements Store {
       branch: null,
       files: [],
       diff: null,
+      summary: null,
       log: "",
       error: null,
       createdAt: new Date().toISOString(),
